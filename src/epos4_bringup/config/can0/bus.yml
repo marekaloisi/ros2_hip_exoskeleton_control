@@ -1,0 +1,55 @@
+options:
+  dcf_path: "/home/marek/epos4_workspaces/epos4_basic_communication/src/epos4_bringup/config/can0"
+
+master:
+  node_id: 127
+  driver: "ros2_canopen::LifecycleMasterDriver"
+  package: "canopen_master_driver"
+  sync_period: 10000
+  start_nodes: true
+
+defaults:
+  dcf : "epos4.dcf"
+  driver: "ros2_canopen::LifecycleCia402Driver"
+  package: "canopen_402_driver"
+  period : 10
+  position_mode: 1
+  revision_number: 0
+  sdo:
+   - {index: 0x6081, subindex: 0, value: 500} # Node ID
+   - {index: 0x6083, subindex: 0, value: 1500} # Node ID
+   - {index: 0x6060, subindex: 0, value: 1} # Node ID
+  tpdo:
+    1:
+      enabled: true
+      cob_id: auto
+      transmission: 0x01
+      mapping:
+       - {index: 0x6041, subindex: 0} # Stausword
+       - {index: 0x6064, subindex: 0} # Position Actual Value
+       - {index: 0x6061, subindex: 0} # Operation Mode
+    2:
+      enabled: true
+      cob_id: auto
+      transmission: 0x01
+      mapping:
+       - {index: 0x606C, subindex: 0} # Velocity Actual Value
+       - {index: 0x6062, subindex: 0} # Position Demand Value
+  rpdo:
+    1:
+      enabled: true
+      cob_id: auto
+      mapping:
+       - {index: 0x6040, subindex: 0} # Controlword
+       - {index: 0x6060, subindex: 0} # Modes of Operation
+       - {index: 0x607A, subindex: 0} # Target Position
+    2:
+      enabled: true
+      cob_id: auto
+      mapping:
+       - {index: 0x6081, subindex: 0} # Profile Velocity
+       - {index: 0x30B0, subindex: 0} # Home Position      
+nodes:
+  joint_hip_left:
+    node_id: 1
+    driver: "ros2_canopen::LifecycleCia402Driver"

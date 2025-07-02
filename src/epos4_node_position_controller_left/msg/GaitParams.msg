@@ -1,0 +1,9 @@
+int32 sdright
+int32 rsh
+int32 rsv
+int32 sdleft
+int32 lsh
+int32 lsv
+int32 userheight
+float32 dfratio
+float32 dbratio
