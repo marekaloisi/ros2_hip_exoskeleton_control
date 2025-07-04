@@ -3,13 +3,14 @@ from rclpy.node import Node
 from epos4_interfaces.msg import GaitParams, GaitFlag, GaitDone
 
 
+
 class GaitManager(Node):
     def __init__(self):
         super().__init__('gait_manager')
 
         # Publishers
 
-        self.param_pub = self.create_publisher(GaitParams, '/gait_params', 10)
+        #self.param_pub = self.create_publisher(GaitParams, '/gait_params', 10)
         self.flag_pub = self.create_publisher(GaitFlag, '/gait_flag', 10)
 
         self.create_subscription(GaitDone, '/joint_hip_left/gait_done', self.left_done_cb, 10)
@@ -49,17 +50,17 @@ class GaitManager(Node):
         flag_msg.gait_flag = self.flag
         
         
-        params = GaitParams()
-        params.sdleft = 586
-        params.lsh = 177
-        params.lsv = 3491
-        params.sdright = 608
-        params.rsh = 179
-        params.rsv = 3510
-        params.userheight = 1800
-        params.dfratio = 0.553
-        params.dbratio = 0.447            
-        self.param_pub.publish(params)
+        #params = GaitParams()
+        #params.sdleft = 586
+        #params.lsh = 177
+        #params.lsv = 3491
+        #params.sdright = 608
+        #params.rsh = 179
+        #params.rsv = 3510
+        #params.userheight = 1800
+        #params.dfratio = 0.553
+        #params.dbratio = 0.447            
+        #self.param_pub.publish(params)
 
         self.flag_pub.publish(flag_msg)
 

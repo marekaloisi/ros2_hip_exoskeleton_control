@@ -28,8 +28,21 @@ def generate_launch_description():
         )]
     )
 
+
+    gait_preidction_node = TimerAction(
+        period=1.0,
+        actions= [Node(
+            package='epos4_gait_parameter_prediction_node',
+            executable='epos4_gait_parameter_prediction_node',
+            name='gait_prediction',
+            output='screen'
+        )]
+    )
+
+
     return LaunchDescription([
         left_node,
         right_node,
-        gait_manager_node
+        gait_manager_node,
+        gait_preidction_node
     ])

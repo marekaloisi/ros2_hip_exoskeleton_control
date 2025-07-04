@@ -133,7 +133,10 @@ class EPOS4Controller(Node):
         if self.swing_phase_flag == -1:
             self.stance_right_theta_arr[0] = np.degrees(np.arcsin((self.SD_Right * self.DF_Ratio)/ self.LL))
             self.stance_right_theta_arr[1] = -np.degrees(np.arcsin((self.SD_Left * self.DB_Ratio)/ self.LL))
-             
+
+    def get_velocity_MD(self):
+        if self.swing_phase_flag == 1:
+            self.swing_right_v_arr[1] = int((self.RSV)/((self.Shank_Length + self.Thigh_Length + 100) * (2*np.pi)) * 60)      
 
     def set_velocity_sdo(self, velocity): 
         req = COWrite.Request()

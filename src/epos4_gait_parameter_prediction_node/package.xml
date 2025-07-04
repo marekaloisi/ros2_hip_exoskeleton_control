@@ -1,15 +1,12 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>epos4_node_position_controller_left</name>
+  <name>epos4_gait_parameter_prediction_node</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="maloisi@unibz.com">marek</maintainer>
   <license>TODO: License declaration</license>
 
-  <depend>rclpy</depend>
-  <depend>epos4_gait_interfaces</depend>
-  
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
