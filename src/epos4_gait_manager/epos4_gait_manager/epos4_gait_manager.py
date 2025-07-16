@@ -49,19 +49,6 @@ class GaitManager(Node):
         flag_msg = GaitFlag()
         flag_msg.gait_flag = self.flag
         
-        
-        #params = GaitParams()
-        #params.sdleft = 586
-        #params.lsh = 177
-        #params.lsv = 3491
-        #params.sdright = 608
-        #params.rsh = 179
-        #params.rsv = 3510
-        #params.userheight = 1800
-        #params.dfratio = 0.553
-        #params.dbratio = 0.447            
-        #self.param_pub.publish(params)
-
         self.flag_pub.publish(flag_msg)
 
 def main(args=None):

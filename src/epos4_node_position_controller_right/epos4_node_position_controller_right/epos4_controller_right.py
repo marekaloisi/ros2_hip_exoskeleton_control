@@ -6,6 +6,7 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 import numpy as np
 from canopen_interfaces.srv import COWrite, COTargetDouble,CORead
+from canopen_interfaces.msg import COData
 
 from epos4_interfaces.msg import GaitFlag, GaitParams, GaitDone
 
@@ -19,7 +20,7 @@ class EPOS4Controller(Node):
         self.stance_right_v_arr  = [10,10]
 
 
-        self.swing_right_theta_arr = [0,0,0]
+        self.swing_right_theta_arr = [20,0,-20]
         self.stance_right_theta_arr = [0,0]
         self.execute = False 
         self.angle_index = 0
@@ -30,7 +31,7 @@ class EPOS4Controller(Node):
         self.p_arr = []
         self.phase_in_progress = False
 
-        self.swing_phase_flag = 0 # -1 left foot swings ; 1 right foot swings
+        self.swing_phase_flag = 0#-1 left foot swings ; 1 right foot swings
         self.step_count = 0
 
         self.done = False
@@ -53,6 +54,57 @@ class EPOS4Controller(Node):
         self.Thigh_Length = 0.0
         self.LL = 0.0
 
+        self.params_initialized = False
+            
+        self.param_sequence = [
+    # Step 1 – RIGHT STANCE (keep previous RSH/RSV or init with left swing values)
+    {
+        "SD_Left": 559.47,
+        "SD_Right": 559.47,
+        "RSH": 269.60,
+        "RSV": 2562.51,
+        "DF_Ratio": 0.553,
+        "DB_Ratio": 0.447,
+        "Height": 1750.0
+    },
+    # Step 2 – RIGHT SWING
+    {
+        "SD_Left": 466.00,
+        "SD_Right": 466.00,
+        "RSH": 246.19,
+        "RSV": 2199.92,
+        "DF_Ratio": 0.553,
+        "DB_Ratio": 0.447,
+        "Height": 1750.0
+    },
+    # Step 3 – RIGHT STANCE (keep previous RSH/RSV)
+    {
+        "SD_Left": 508.56,
+        "SD_Right": 508.56,
+        "RSH": 246.19,
+        "RSV": 2199.92,
+        "DF_Ratio": 0.553,
+        "DB_Ratio": 0.447,
+        "Height": 1750.0
+    },
+    # Step 4 – RIGHT SWING
+    {
+        "SD_Left": 440.08,
+        "SD_Right": 440.08,
+        "RSH": 215.29,
+        "RSV": 2037.16,
+        "DF_Ratio": 0.553,
+        "DB_Ratio": 0.447,
+        "Height": 1750.0
+    },
+]
+
+
+
+
+               
+        self.param_step_index = 0
+
         
         # Init clients
         self.start_nmt_client = self.create_client(Trigger, '/joint_hip_right/nmt_start_node')
@@ -62,11 +114,13 @@ class EPOS4Controller(Node):
         self.sdo_read_client = self.create_client(CORead, '/joint_hip_right/sdo_read')
         self.target_client = self.create_client(COTargetDouble, '/joint_hip_right/target')
         self.reset_nmt_client = self.create_client(Trigger, '/joint_hip_right/nmt_reset_node')
+        self.create_subscription(COData, '/joint_hip_right/rpdo', self.rpdo_cb, 10)
+        self.log_file = open('/home/marek/right_rpdo_actual_position.csv', 'a')
 
         #self.get_logger().info('Starting controller: running start.sh...')
         #subprocess.run(['bash', './start_left.sh'], check=True)
-        self.create_subscription(GaitFlag, '/gait_flag', self.gait_flag_cb, 10)
-        self.create_subscription(GaitParams, '/gait_params', self.gait_params_cb, 10)
+        #self.create_subscription(GaitFlag, '/gait_flag', self.gait_flag_cb, 10)
+        #self.create_subscription(GaitParams, '/gait_params', self.gait_params_cb, 10)
         self.phase_done_pub = self.create_publisher(GaitDone, '/joint_hip_right/gait_done', 10) 
 
         self.call_service_sync(self.start_nmt_client, Trigger.Request(), "NMT Start Node")
@@ -80,7 +134,7 @@ class EPOS4Controller(Node):
         # self.set_angle(pos)
         
        
-        self.create_timer(0.05, self.command_loop)  # every 100ms
+        self.create_timer(0.1, self.command_loop)  # every 100ms
 
     def gait_flag_cb(self, msg: GaitFlag):
         if msg.gait_flag != self.swing_phase_flag:
@@ -91,25 +145,56 @@ class EPOS4Controller(Node):
             self.get_logger().info(f"New gait flag received: {self.swing_phase_flag}, starting motion.")
         else:
             self.get_logger().info(f"Ignored duplicate gait flag: {msg.gait_flag}") 
+            self.done = False  # Reset done flag to allow re-execution of the same phase
 
-    def gait_params_cb(self, msg: GaitParams):
+    def rpdo_cb(self, msg: COData):
+        if msg.index == 0x6064 and msg.subindex == 0x00:
+            try:
+                # Handle both int and bytes formats
+                if isinstance(msg.data, bytes):
+                    val = int.from_bytes(msg.data, byteorder='little', signed=True)
+                else:
+                    val = int(msg.data)
+                    if val >= 2**31:
+                        val -= 2**32  # convert unsigned to signed
+
+                actual_pos = val / 1000.0  # motor increments to encoder counts
+                angle = actual_pos / (120 / 114.4)  # encoder counts to degrees
+
+                timestamp = self.get_clock().now().to_msg()
+                if hasattr(self, 'log_file') and self.log_file:
+                    self.log_file.write(f"{timestamp.sec}.{timestamp.nanosec},{angle}\n")
+
+            except Exception as e:
+                self.get_logger().warn(f"Failed to decode RPDO data: {e}")
+
+    def destroy_node(self):
+        if hasattr(self, 'log_file') and self.log_file:
+            self.log_file.close()
+        super().destroy_node()
+
+
+    # def gait_params_cb(self, msg: GaitParams):
        
-     # Store values if needed
-        self.SD_Left = msg.sdleft
-        self.LSH = msg.lsh
-        self.LSV = msg.lsv
+    #  # Store values if needed
+    #     self.SD_Left = msg.sdleft
+    #     self.LSH = msg.lsh
+    #     self.LSV = msg.lsv
 
-        self.SD_Right = msg.sdright
-        self.RSH = msg.rsh
-        self.RSV = msg.rsv
+    #     self.SD_Right = msg.sdright
+    #     self.RSH = msg.rsh
+    #     self.RSV = msg.rsv
 
-        self.DF_Ratio = msg.dfratio
-        self.DB_Ratio = msg.dbratio
+    #     self.DF_Ratio = msg.dfratio
+    #     self.DB_Ratio = msg.dbratio
 
-        self.Height = msg.userheight #MM
-        self.Shank_Length = self.Height * 0.22 #MM
-        self.Thigh_Length = self.Height * 0.24 #MM
-        self.LL = self.Shank_Length + self.Thigh_Length #MM
+    #     self.Height = msg.userheight #MM
+    #     self.Shank_Length = self.Height * 0.22 #MM
+    #     self.Thigh_Length = self.Height * 0.24 #MM
+    #     self.LL = self.Shank_Length + self.Thigh_Length #MM
+
+    #     self.params_initialized = True
+
 
 
        
@@ -126,13 +211,45 @@ class EPOS4Controller(Node):
             self.get_logger().error(f'{service_name} FAILED: {future.result().message}')
 
     def get_theta_HL(self):
+        params = self.param_sequence[self.param_step_index % len(self.param_sequence)]
+
+        self.SD_Left = params["SD_Left"]
+        self.SD_Right = params["SD_Right"]
+        self.RSH = params["RSH"]
+        self.RSV = params["RSV"]
+        self.DF_Ratio = params["DF_Ratio"]
+        self.DB_Ratio = params["DB_Ratio"]
+        self.Height = params["Height"]
+
+        self.Thigh_Length = self.Height * 0.24
+        self.Shank_Length = self.Height * 0.22
+        self.LL = self.Thigh_Length + self.Shank_Length
+
+        self.params_initialized = True
+        if self.LL == 0.0 or not self.params_initialized:
+            self.get_logger().warn("LL is zero – skipping angle computation.")
+            return
+
         if self.swing_phase_flag == 1:
-            self.swing_right_theta_arr[0] = -np.degrees(np.arcsin((self.SD_Left * self.DB_Ratio)/ self.LL))
-            self.swing_right_theta_arr[1] = np.degrees(np.arccos((self.Thigh_Length**2 + (self.LL-self.RSH)**2 - self.Shank_Length**2 )/ (2 * self.Thigh_Length * (self.LL-self.RSH))))
-            self.swing_right_theta_arr[2] = np.degrees(np.arcsin((self.SD_Right * self.DF_Ratio)/ self.LL))
+        
+            val = (self.Thigh_Length**2 + (self.LL - self.RSH)**2 - self.Shank_Length**2) / (2 * self.Thigh_Length * (self.LL - self.RSH))
+            #val = np.clip(val, -1.0, 1.0)
+
+            theta0 = -np.degrees(np.arcsin((self.SD_Left * self.DB_Ratio) / self.LL))
+            theta1 = np.degrees(np.arccos(val))
+            theta2 = np.degrees(np.arcsin((self.SD_Right * self.DF_Ratio) / self.LL))
+            self.swing_right_theta_arr = [theta0, theta1, theta2]
+
+            v_calc = int((self.RSV) / ((self.LL + 100) * (2 * np.pi)) * 60)
+            v_safe = min(v_calc, 10)
+            self.swing_right_v_arr = [10,10,10]
+
         if self.swing_phase_flag == -1:
-            self.stance_right_theta_arr[0] = np.degrees(np.arcsin((self.SD_Right * self.DF_Ratio)/ self.LL))
-            self.stance_right_theta_arr[1] = -np.degrees(np.arcsin((self.SD_Left * self.DB_Ratio)/ self.LL))
+            theta0 = np.degrees(np.arcsin((self.SD_Right * self.DF_Ratio) / self.LL))
+            theta1 = -np.degrees(np.arcsin((self.SD_Left * self.DB_Ratio) / self.LL))
+
+            self.stance_right_theta_arr = [theta0, theta1]
+            self.stance_right_v_arr = [10,10,10]
 
     def get_velocity_MD(self):
         if self.swing_phase_flag == 1:
@@ -207,12 +324,19 @@ class EPOS4Controller(Node):
             msg = GaitDone()
             msg.done = True
             self.phase_done_pub.publish(msg)
-
+            self.param_step_index += 1
            
 
     def command_loop(self):
         if not self.execute:
-            return
+            if self.param_step_index < len(self.param_sequence):
+                self.swing_phase_flag = -1 if self.param_step_index % 2 == 0 else 1
+                self.done = False
+                self.execute = True
+                self.phase_in_progress = False
+                self.get_logger().info(f"[AUTO] Starting phase {self.param_step_index}, flag: {self.swing_phase_flag}")
+            else:
+                return  # Finished all predefined steps
 
         if not self.phase_in_progress:
             self.get_logger().info("Starting new motion phase")
