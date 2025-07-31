@@ -29,7 +29,8 @@ Run the following in **both terminals**:
 sudo -E -s
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 source /opt/ros/humble/setup.bash
-source ~/your_ros2_ws/install/setup.bash
+cd ~/epos4_workspaces/epos4_basic_communication
+source install/setup.bash
 ```
 
 ### 2. Terminal 1 – Launch CAN + lifecycle nodes
